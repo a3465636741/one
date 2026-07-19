@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { demoEvents, type DemoEvent, type EventEntry } from './data/events'
 import { fetchEventDetail, fetchEvents } from './services/eventApi'
 
-type ViewName = 'hall' | 'joined' | 'profile'
+type ViewName = 'hall' | 'favorites' | 'profile'
 
 const query = ref('')
 const activeCategory = ref('全部')
@@ -11,7 +11,7 @@ const activeView = ref<ViewName>('hall')
 const events = ref<DemoEvent[]>([])
 const selectedEvent = ref<DemoEvent | null>(null)
 const categoryScroller = ref<HTMLElement | null>(null)
-const joinedIds = ref<Set<number>>(new Set())
+const favoriteIds = ref<Set<number>>(new Set())
 const isReady = ref(false)
 const isDetailLoading = ref(false)
 const isApiAvailable = ref(false)
@@ -40,12 +40,12 @@ const filteredEvents = computed(() => {
   })
 })
 
-const joinedEvents = computed(() =>
-  events.value.filter((event) => joinedIds.value.has(event.id)),
+const favoriteEvents = computed(() =>
+  events.value.filter((event) => favoriteIds.value.has(event.id)),
 )
 
 const visibleEvents = computed(() =>
-  activeView.value === 'hall' ? filteredEvents.value : joinedEvents.value,
+  activeView.value === 'hall' ? filteredEvents.value : favoriteEvents.value,
 )
 
 const formatDate = (value: string) =>
@@ -124,25 +124,28 @@ const markImageFailed = (id: number) => {
   failedImages.value = new Set([...failedImages.value, id])
 }
 
-const persistJoinedEvents = () => {
-  window.localStorage.setItem('campus-event-hub-joined', JSON.stringify([...joinedIds.value]))
+const persistFavoriteEvents = () => {
+  window.localStorage.setItem(
+    'campus-event-hub-favorites',
+    JSON.stringify([...favoriteIds.value]),
+  )
 }
 
-const toggleJoined = (id: number) => {
-  const next = new Set(joinedIds.value)
+const toggleFavorite = (id: number) => {
+  const next = new Set(favoriteIds.value)
   if (next.has(id)) {
     next.delete(id)
-    showToast('已从“已参加”中移除。')
+    showToast('已取消收藏。')
   } else {
     next.add(id)
-    showToast('已添加到“已参加”，记录保存在当前浏览器。')
+    showToast('已收藏，记录保存在当前浏览器。')
   }
-  joinedIds.value = next
-  persistJoinedEvents()
+  favoriteIds.value = next
+  persistFavoriteEvents()
 }
 
-const isSelectedJoined = computed(() =>
-  selectedEvent.value ? joinedIds.value.has(selectedEvent.value.id) : false,
+const isSelectedFavorite = computed(() =>
+  selectedEvent.value ? favoriteIds.value.has(selectedEvent.value.id) : false,
 )
 
 const selectedEntry = computed<EventEntry | null>(() => {
@@ -160,11 +163,16 @@ const selectedEntry = computed<EventEntry | null>(() => {
 
 onMounted(async () => {
   try {
-    const storedIds = JSON.parse(window.localStorage.getItem('campus-event-hub-joined') ?? '[]')
+    const currentFavorites = window.localStorage.getItem('campus-event-hub-favorites')
+    const legacyJoined = window.localStorage.getItem('campus-event-hub-joined')
+    const storedIds = JSON.parse(currentFavorites ?? legacyJoined ?? '[]')
     if (Array.isArray(storedIds)) {
-      joinedIds.value = new Set(storedIds.filter((id): id is number => Number.isInteger(id)))
+      favoriteIds.value = new Set(storedIds.filter((id): id is number => Number.isInteger(id)))
+      persistFavoriteEvents()
+      window.localStorage.removeItem('campus-event-hub-joined')
     }
   } catch {
+    window.localStorage.removeItem('campus-event-hub-favorites')
     window.localStorage.removeItem('campus-event-hub-joined')
   }
 
@@ -266,9 +274,9 @@ onMounted(async () => {
       <section v-if="activeView !== 'profile'" class="events-section" aria-labelledby="events-title">
         <div class="section-heading">
           <div>
-            <p class="section-label">{{ activeView === 'hall' ? '近期活动' : '你的活动' }}</p>
+            <p class="section-label">{{ activeView === 'hall' ? '近期活动' : '你的收藏' }}</p>
             <h2 id="events-title">
-              {{ activeView === 'hall' ? '接下来可以去哪里' : '已参加的活动' }}
+              {{ activeView === 'hall' ? '接下来可以去哪里' : '收藏的活动' }}
             </h2>
           </div>
           <p>{{ activeView === 'hall' ? '按开始时间排序' : '记录保存在当前浏览器' }}</p>
@@ -322,12 +330,12 @@ onMounted(async () => {
         </div>
 
         <div v-else class="empty-state">
-          <strong>{{ activeView === 'hall' ? '暂时没有匹配的活动' : '还没有标记已参加的活动' }}</strong>
+          <strong>{{ activeView === 'hall' ? '暂时没有匹配的活动' : '还没有收藏活动' }}</strong>
           <p>
             {{
               activeView === 'hall'
                 ? '换一个关键词或清除分类后再试试。'
-                : '打开活动详情后，可以手动标记为已参加。'
+                : '打开活动详情后，可以收藏感兴趣的活动。'
             }}
           </p>
           <button
@@ -354,16 +362,16 @@ onMounted(async () => {
           </div>
           <dl class="profile-stats">
             <div>
-              <dt>已参加</dt>
-              <dd>{{ joinedEvents.length }} 项</dd>
+              <dt>收藏</dt>
+              <dd>{{ favoriteEvents.length }} 项</dd>
             </div>
             <div>
               <dt>数据位置</dt>
               <dd>当前浏览器</dd>
             </div>
           </dl>
-          <button type="button" class="profile-action" @click="switchView('joined')">
-            查看已参加的活动
+          <button type="button" class="profile-action" @click="switchView('favorites')">
+            查看收藏的活动
           </button>
         </div>
 
@@ -430,13 +438,13 @@ onMounted(async () => {
 
             <button
               type="button"
-              class="joined-toggle"
-              :class="{ active: isSelectedJoined }"
-              @click="toggleJoined(selectedEvent.id)"
+              class="favorite-toggle"
+              :class="{ active: isSelectedFavorite }"
+              @click="toggleFavorite(selectedEvent.id)"
             >
-              {{ isSelectedJoined ? '从已参加中移除' : '标记为已参加' }}
+              {{ isSelectedFavorite ? '取消收藏' : '收藏活动' }}
             </button>
-            <p class="joined-help">这是本机记录，不会代替主办方的报名流程。</p>
+            <p class="favorite-help">收藏只表示感兴趣，不代表已经完成报名。</p>
 
             <div v-if="selectedEntry" class="entry-panel">
               <div>
@@ -477,12 +485,12 @@ onMounted(async () => {
       </button>
       <button
         type="button"
-        :class="{ active: activeView === 'joined' }"
-        :aria-current="activeView === 'joined' ? 'page' : undefined"
-        @click="switchView('joined')"
+        :class="{ active: activeView === 'favorites' }"
+        :aria-current="activeView === 'favorites' ? 'page' : undefined"
+        @click="switchView('favorites')"
       >
-        <strong>已参加</strong>
-        <span>{{ joinedEvents.length }} 项记录</span>
+        <strong>收藏</strong>
+        <span>{{ favoriteEvents.length }} 项活动</span>
       </button>
       <button
         type="button"

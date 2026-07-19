@@ -451,7 +451,7 @@ p {
 
 .detail-button,
 .primary-button,
-.joined-toggle,
+.favorite-toggle,
 .profile-action,
 .empty-state button {
   border: 0;
@@ -615,7 +615,7 @@ p {
 }
 
 .profile-action,
-.joined-toggle {
+.favorite-toggle {
   min-height: 44px;
   padding: 0 18px;
   color: var(--accent-strong);
@@ -624,8 +624,8 @@ p {
 }
 
 .profile-action:hover,
-.joined-toggle:hover,
-.joined-toggle.active {
+.favorite-toggle:hover,
+.favorite-toggle.active {
   background: color-mix(in srgb, var(--accent-soft) 68%, var(--accent));
 }
 
@@ -733,11 +733,11 @@ p {
   background: var(--surface-soft);
 }
 
-.joined-toggle {
+.favorite-toggle {
   margin-bottom: 8px;
 }
 
-.joined-help {
+.favorite-help {
   margin: 0 0 22px !important;
   color: var(--text-muted);
   font-size: 12px;
