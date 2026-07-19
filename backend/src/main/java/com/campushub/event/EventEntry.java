@@ -43,6 +43,22 @@ public class EventEntry {
     protected EventEntry() {
     }
 
+    public EventEntry(
+            Event event,
+            EntryType type,
+            String label,
+            String url,
+            String qrImageUrl,
+            int sortOrder
+    ) {
+        this.event = event;
+        this.type = type;
+        this.label = label;
+        this.url = url;
+        this.qrImageUrl = qrImageUrl;
+        this.sortOrder = sortOrder;
+    }
+
     public Long getId() {
         return id;
     }

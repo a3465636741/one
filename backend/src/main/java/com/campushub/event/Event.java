@@ -3,6 +3,7 @@ package com.campushub.event;
 import com.campushub.category.Category;
 import com.campushub.organizer.Organizer;
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -66,11 +67,81 @@ public class Event {
     @Column(nullable = false)
     private boolean demo;
 
-    @OneToMany(mappedBy = "event", fetch = FetchType.LAZY)
+    @OneToMany(
+            mappedBy = "event",
+            fetch = FetchType.LAZY,
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
     @OrderBy("sortOrder ASC")
     private List<EventEntry> entries = new ArrayList<>();
 
     protected Event() {
+    }
+
+    public Event(
+            String title,
+            String summary,
+            String content,
+            Category category,
+            Organizer organizer,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            String location,
+            String coverUrl,
+            String sourceUrl,
+            EventStatus status,
+            boolean demo
+    ) {
+        update(
+                title,
+                summary,
+                content,
+                category,
+                organizer,
+                startTime,
+                endTime,
+                location,
+                coverUrl,
+                sourceUrl,
+                demo
+        );
+        this.status = status;
+    }
+
+    public void update(
+            String title,
+            String summary,
+            String content,
+            Category category,
+            Organizer organizer,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            String location,
+            String coverUrl,
+            String sourceUrl,
+            boolean demo
+    ) {
+        this.title = title;
+        this.summary = summary;
+        this.content = content;
+        this.category = category;
+        this.organizer = organizer;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.location = location;
+        this.coverUrl = coverUrl;
+        this.sourceUrl = sourceUrl;
+        this.demo = demo;
+    }
+
+    public void replaceEntries(List<EventEntry> newEntries) {
+        entries.clear();
+        entries.addAll(newEntries);
+    }
+
+    public void changeStatus(EventStatus status) {
+        this.status = status;
     }
 
     public Long getId() {

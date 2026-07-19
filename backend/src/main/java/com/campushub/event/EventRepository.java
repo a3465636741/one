@@ -10,6 +10,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
+    @EntityGraph(attributePaths = {"category", "organizer", "entries"})
+    List<Event> findAllByOrderByStartTimeAsc();
+
+    @EntityGraph(attributePaths = {"category", "organizer", "entries"})
+    List<Event> findAllByStatusOrderByStartTimeAsc(EventStatus status);
+
+    @Override
+    @EntityGraph(attributePaths = {"category", "organizer", "entries"})
+    Optional<Event> findById(Long id);
+
     @Query("""
             SELECT e FROM Event e
             JOIN FETCH e.category c
