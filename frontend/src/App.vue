@@ -1,23 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { demoEvents, type DemoEvent } from './data/events'
+import { demoEvents, type DemoEvent, type EventEntry } from './data/events'
+import { fetchEventDetail, fetchEvents } from './services/eventApi'
 
 const query = ref('')
 const activeCategory = ref('全部')
+const events = ref<DemoEvent[]>([])
 const selectedEvent = ref<DemoEvent | null>(null)
 const isReady = ref(false)
+const isDetailLoading = ref(false)
+const isApiAvailable = ref(false)
 const toastMessage = ref('')
 const failedImages = ref<Set<number>>(new Set())
 
 const categories = computed(() => [
   '全部',
-  ...Array.from(new Set(demoEvents.map((event) => event.category))),
+  ...Array.from(new Set(events.value.map((event) => event.category))),
 ])
 
 const filteredEvents = computed(() => {
   const keyword = query.value.trim().toLowerCase()
 
-  return demoEvents.filter((event) => {
+  return events.value.filter((event) => {
     const matchesCategory =
       activeCategory.value === '全部' || event.category === activeCategory.value
     const matchesKeyword =
@@ -54,9 +58,23 @@ const clearFilters = () => {
   activeCategory.value = '全部'
 }
 
-const openEvent = (event: DemoEvent) => {
+const openEvent = async (event: DemoEvent) => {
   selectedEvent.value = event
   document.body.classList.add('sheet-open')
+
+  if (!isApiAvailable.value) return
+
+  isDetailLoading.value = true
+  try {
+    const detail = await fetchEventDetail(event.id)
+    if (selectedEvent.value?.id === event.id) {
+      selectedEvent.value = detail
+    }
+  } catch {
+    showToast('详情接口暂时不可用，当前展示活动列表中的基础信息。')
+  } finally {
+    isDetailLoading.value = false
+  }
 }
 
 const closeEvent = () => {
@@ -65,8 +83,8 @@ const closeEvent = () => {
 }
 
 let toastTimer: number | undefined
-const showDemoEntry = () => {
-  toastMessage.value = '这是演示入口。交付后将跳转到主办方提供的官方页面。'
+const showToast = (message: string) => {
+  toastMessage.value = message
   window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => {
     toastMessage.value = ''
@@ -77,13 +95,29 @@ const markImageFailed = (id: number) => {
   failedImages.value = new Set([...failedImages.value, id])
 }
 
-const qrCodeUrl = (id: number) => {
-  const target = encodeURIComponent(`https://example.com/demo-event/${id}`)
-  return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${target}`
-}
+const selectedEntry = computed<EventEntry | null>(() => {
+  if (!selectedEvent.value) return null
+  if (selectedEvent.value.entries?.length) return selectedEvent.value.entries[0]
 
-onMounted(() => {
-  isReady.value = true
+  const url = `https://example.com/demo-event/${selectedEvent.value.id}`
+  return {
+    type: 'LINK',
+    label: selectedEvent.value.entryLabel,
+    url,
+    qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}`,
+  }
+})
+
+onMounted(async () => {
+  try {
+    events.value = await fetchEvents()
+    isApiAvailable.value = true
+  } catch {
+    events.value = demoEvents
+    showToast('后端未启动，已自动切换为前端模拟数据。')
+  } finally {
+    isReady.value = true
+  }
 })
 </script>
 
@@ -127,7 +161,7 @@ onMounted(() => {
             <p class="section-label">快速筛选</p>
             <h2 id="category-title">你想参加什么</h2>
           </div>
-          <span>{{ filteredEvents.length }} 条演示活动</span>
+          <span>{{ filteredEvents.length }} 条活动</span>
         </div>
 
         <div class="category-list" role="list" aria-label="活动分类">
@@ -243,6 +277,7 @@ onMounted(() => {
             <span class="category-name">{{ selectedEvent.category }}</span>
             <h2 id="detail-title">{{ selectedEvent.title }}</h2>
             <p>{{ selectedEvent.summary }}</p>
+            <p v-if="isDetailLoading" class="demo-note">正在读取完整活动信息……</p>
 
             <dl class="detail-list">
               <div>
@@ -262,16 +297,21 @@ onMounted(() => {
               </div>
             </dl>
 
-            <div class="entry-panel">
+            <div v-if="selectedEntry" class="entry-panel">
               <div>
                 <h3>主办方官方入口</h3>
                 <p>手机端可点击按钮，电脑端可使用手机扫码。</p>
-                <button type="button" class="primary-button" @click="showDemoEntry">
-                  {{ selectedEvent.entryLabel }}
-                </button>
+                <a
+                  class="primary-button"
+                  :href="selectedEntry.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {{ selectedEntry.label }}
+                </a>
               </div>
               <img
-                :src="qrCodeUrl(selectedEvent.id)"
+                :src="selectedEntry.qrImageUrl"
                 alt="模拟官方入口二维码"
                 width="120"
                 height="120"

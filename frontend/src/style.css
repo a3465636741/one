@@ -605,12 +605,16 @@ p {
 }
 
 .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   margin-top: 16px;
   padding: 0 18px;
   color: #f5fff9;
   background: var(--accent-strong);
   font-weight: 750;
+  text-decoration: none;
 }
 
 .primary-button:hover {

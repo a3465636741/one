@@ -19,17 +19,34 @@
 ## 技术方向
 
 - 前端：Vue 3 + TypeScript
-- 后端：Java + Spring Boot
-- 数据库：MySQL
+- 后端：Java 21 + Spring Boot 3.5
+- 数据库：H2（本地开箱即用）/ MySQL 8（交付环境）
 - 后续按实际需求引入 Redis、Docker 和 Nginx
 
-## 本地运行前端
+## 本地运行
+
+先启动后端。项目自带 Maven Wrapper，不需要单独安装 Maven：
+
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
+```
+
+默认使用内存中的 H2 数据库，Flyway 会自动建表并导入 12 条模拟活动。后端启动后可访问：
+
+- 健康检查：`http://localhost:8080/api/public/health`
+- 活动列表：`http://localhost:8080/api/public/events`
+- 活动详情：`http://localhost:8080/api/public/events/1`
+
+再启动前端：
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+前端默认请求 `http://localhost:8080/api/public`。如果后端未启动，页面会自动降级到前端内置的模拟数据；也可通过 `VITE_API_BASE_URL` 修改接口地址。
 
 生产构建：
 
@@ -38,10 +55,20 @@ cd frontend
 npm run build
 ```
 
+使用 MySQL 时，先创建 `campus_event_hub` 数据库，并设置环境变量：
+
+```powershell
+$env:DB_USERNAME="你的数据库用户名"
+$env:DB_PASSWORD="你的数据库密码"
+.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=mysql
+```
+
+可通过 `DB_URL` 覆盖默认连接地址。不要把数据库密码提交到 GitHub。
+
 ## 项目文档
 
 前期调研、需求边界和技术方案位于 [docs](docs/) 目录。
 
 ## 当前状态
 
-已完成第一版 H5 前端演示：首页、活动列表、关键词搜索、分类筛选、活动详情、演示二维码、加载/无结果/图片失败状态和手机端适配。当前使用 12 条明确标注的模拟活动数据，下一步创建 Spring Boot 后端和 MySQL 数据库。
+已完成第一版 H5 学生端、Spring Boot 活动目录后端、Flyway 数据库迁移和前后端 API 接入。公开接口支持活动列表、活动详情、分类、关键词和日期筛选，并有 8 项自动化测试。下一步实现管理员活动新增、编辑、审核和下架功能。

@@ -1,15 +1,27 @@
+export interface EventEntry {
+  id?: number
+  type: string
+  label: string
+  url: string
+  qrImageUrl: string
+}
+
 export interface DemoEvent {
   id: number
   title: string
   category: string
+  categorySlug?: string
   startTime: string
   endTime: string
   location: string
   organizer: string
   summary: string
+  content?: string
   coverUrl: string
   entryLabel: string
-  isDemo: true
+  sourceUrl?: string | null
+  entries?: EventEntry[]
+  isDemo: boolean
 }
 
 export const demoEvents: DemoEvent[] = [
