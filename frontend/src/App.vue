@@ -3,10 +3,15 @@ import { computed, onMounted, ref } from 'vue'
 import { demoEvents, type DemoEvent, type EventEntry } from './data/events'
 import { fetchEventDetail, fetchEvents } from './services/eventApi'
 
+type ViewName = 'hall' | 'joined' | 'profile'
+
 const query = ref('')
 const activeCategory = ref('全部')
+const activeView = ref<ViewName>('hall')
 const events = ref<DemoEvent[]>([])
 const selectedEvent = ref<DemoEvent | null>(null)
+const categoryScroller = ref<HTMLElement | null>(null)
+const joinedIds = ref<Set<number>>(new Set())
 const isReady = ref(false)
 const isDetailLoading = ref(false)
 const isApiAvailable = ref(false)
@@ -35,6 +40,14 @@ const filteredEvents = computed(() => {
   })
 })
 
+const joinedEvents = computed(() =>
+  events.value.filter((event) => joinedIds.value.has(event.id)),
+)
+
+const visibleEvents = computed(() =>
+  activeView.value === 'hall' ? filteredEvents.value : joinedEvents.value,
+)
+
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('zh-CN', {
     month: 'long',
@@ -51,6 +64,16 @@ const formatTime = (value: string) =>
 
 const selectCategory = (category: string) => {
   activeCategory.value = category
+}
+
+const scrollCategories = (direction: -1 | 1) => {
+  const scroller = categoryScroller.value
+  if (!scroller) return
+
+  scroller.scrollBy({
+    left: direction * Math.min(280, scroller.clientWidth * 0.78),
+    behavior: 'smooth',
+  })
 }
 
 const clearFilters = () => {
@@ -82,6 +105,12 @@ const closeEvent = () => {
   document.body.classList.remove('sheet-open')
 }
 
+const switchView = (view: ViewName) => {
+  activeView.value = view
+  closeEvent()
+  window.scrollTo({ top: 0, behavior: 'auto' })
+}
+
 let toastTimer: number | undefined
 const showToast = (message: string) => {
   toastMessage.value = message
@@ -94,6 +123,27 @@ const showToast = (message: string) => {
 const markImageFailed = (id: number) => {
   failedImages.value = new Set([...failedImages.value, id])
 }
+
+const persistJoinedEvents = () => {
+  window.localStorage.setItem('campus-event-hub-joined', JSON.stringify([...joinedIds.value]))
+}
+
+const toggleJoined = (id: number) => {
+  const next = new Set(joinedIds.value)
+  if (next.has(id)) {
+    next.delete(id)
+    showToast('已从“已参加”中移除。')
+  } else {
+    next.add(id)
+    showToast('已添加到“已参加”，记录保存在当前浏览器。')
+  }
+  joinedIds.value = next
+  persistJoinedEvents()
+}
+
+const isSelectedJoined = computed(() =>
+  selectedEvent.value ? joinedIds.value.has(selectedEvent.value.id) : false,
+)
 
 const selectedEntry = computed<EventEntry | null>(() => {
   if (!selectedEvent.value) return null
@@ -110,6 +160,15 @@ const selectedEntry = computed<EventEntry | null>(() => {
 
 onMounted(async () => {
   try {
+    const storedIds = JSON.parse(window.localStorage.getItem('campus-event-hub-joined') ?? '[]')
+    if (Array.isArray(storedIds)) {
+      joinedIds.value = new Set(storedIds.filter((id): id is number => Number.isInteger(id)))
+    }
+  } catch {
+    window.localStorage.removeItem('campus-event-hub-joined')
+  }
+
+  try {
     events.value = await fetchEvents()
     isApiAvailable.value = true
   } catch {
@@ -125,7 +184,12 @@ onMounted(async () => {
   <div class="site-shell">
     <header class="topbar">
       <div class="topbar-inner">
-        <a class="brand" href="#top" aria-label="返回校园活动中心首页">
+        <a
+          class="brand"
+          href="#top"
+          aria-label="返回校园活动中心首页"
+          @click.prevent="switchView('hall')"
+        >
           <span class="brand-mark" aria-hidden="true">集</span>
           <span>
             <strong>校园活动中心</strong>
@@ -137,6 +201,7 @@ onMounted(async () => {
     </header>
 
     <main id="top" class="page-content">
+      <template v-if="activeView === 'hall'">
       <section class="intro" aria-labelledby="page-title">
         <div class="intro-copy">
           <p class="section-label">校园活动导航</p>
@@ -164,28 +229,49 @@ onMounted(async () => {
           <span>{{ filteredEvents.length }} 条活动</span>
         </div>
 
-        <div class="category-list" role="list" aria-label="活动分类">
+        <div class="category-scroll-shell">
           <button
-            v-for="category in categories"
-            :key="category"
             type="button"
-            class="category-button"
-            :class="{ active: activeCategory === category }"
-            :aria-pressed="activeCategory === category"
-            @click="selectCategory(category)"
+            class="category-scroll-button"
+            aria-label="查看前面的活动分类"
+            @click="scrollCategories(-1)"
           >
-            {{ category }}
+            ‹
+          </button>
+          <div ref="categoryScroller" class="category-list" role="list" aria-label="活动分类">
+            <button
+              v-for="category in categories"
+              :key="category"
+              type="button"
+              class="category-button"
+              :class="{ active: activeCategory === category }"
+              :aria-pressed="activeCategory === category"
+              @click="selectCategory(category)"
+            >
+              {{ category }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="category-scroll-button"
+            aria-label="查看更多活动分类"
+            @click="scrollCategories(1)"
+          >
+            ›
           </button>
         </div>
       </section>
+      </template>
 
-      <section class="events-section" aria-labelledby="events-title">
+      <section v-if="activeView !== 'profile'" class="events-section" aria-labelledby="events-title">
         <div class="section-heading">
           <div>
-            <p class="section-label">近期活动</p>
-            <h2 id="events-title">接下来可以去哪里</h2>
+            <p class="section-label">{{ activeView === 'hall' ? '近期活动' : '你的活动' }}</p>
+            <h2 id="events-title">
+              {{ activeView === 'hall' ? '接下来可以去哪里' : '已参加的活动' }}
+            </h2>
           </div>
-          <p>按开始时间排序</p>
+          <p>{{ activeView === 'hall' ? '按开始时间排序' : '记录保存在当前浏览器' }}</p>
         </div>
 
         <div v-if="!isReady" class="event-grid" aria-label="活动加载中">
@@ -196,8 +282,8 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else-if="filteredEvents.length" class="event-grid">
-          <article v-for="event in filteredEvents" :key="event.id" class="event-card">
+        <div v-else-if="visibleEvents.length" class="event-grid">
+          <article v-for="event in visibleEvents" :key="event.id" class="event-card">
             <div class="event-cover">
               <img
                 v-if="!failedImages.has(event.id)"
@@ -236,9 +322,54 @@ onMounted(async () => {
         </div>
 
         <div v-else class="empty-state">
-          <strong>暂时没有匹配的活动</strong>
-          <p>换一个关键词或清除分类后再试试。</p>
-          <button type="button" @click="clearFilters">清除筛选</button>
+          <strong>{{ activeView === 'hall' ? '暂时没有匹配的活动' : '还没有标记已参加的活动' }}</strong>
+          <p>
+            {{
+              activeView === 'hall'
+                ? '换一个关键词或清除分类后再试试。'
+                : '打开活动详情后，可以手动标记为已参加。'
+            }}
+          </p>
+          <button
+            type="button"
+            @click="activeView === 'hall' ? clearFilters() : switchView('hall')"
+          >
+            {{ activeView === 'hall' ? '清除筛选' : '去大厅看看' }}
+          </button>
+        </div>
+      </section>
+
+      <section v-else class="profile-section" aria-labelledby="profile-title">
+        <p class="section-label">个人</p>
+        <h1 id="profile-title">访客模式</h1>
+        <p class="profile-lead">无需登录也可以浏览活动，当前只在这台设备上保存你的活动记录。</p>
+
+        <div class="profile-summary">
+          <div class="profile-identity">
+            <span class="profile-mark" aria-hidden="true">集</span>
+            <div>
+              <strong>校园活动访客</strong>
+              <span>本地演示账户</span>
+            </div>
+          </div>
+          <dl class="profile-stats">
+            <div>
+              <dt>已参加</dt>
+              <dd>{{ joinedEvents.length }} 项</dd>
+            </div>
+            <div>
+              <dt>数据位置</dt>
+              <dd>当前浏览器</dd>
+            </div>
+          </dl>
+          <button type="button" class="profile-action" @click="switchView('joined')">
+            查看已参加的活动
+          </button>
+        </div>
+
+        <div class="profile-note">
+          <strong>后续计划</strong>
+          <p>学生账号上线后，可将活动记录同步到后端，实现跨设备查看。当前版本不收集姓名、学号或报名信息。</p>
         </div>
       </section>
     </main>
@@ -297,6 +428,16 @@ onMounted(async () => {
               </div>
             </dl>
 
+            <button
+              type="button"
+              class="joined-toggle"
+              :class="{ active: isSelectedJoined }"
+              @click="toggleJoined(selectedEvent.id)"
+            >
+              {{ isSelectedJoined ? '从已参加中移除' : '标记为已参加' }}
+            </button>
+            <p class="joined-help">这是本机记录，不会代替主办方的报名流程。</p>
+
             <div v-if="selectedEntry" class="entry-panel">
               <div>
                 <h3>主办方官方入口</h3>
@@ -323,6 +464,36 @@ onMounted(async () => {
         </div>
       </section>
     </div>
+
+    <nav class="bottom-nav" aria-label="主要页面">
+      <button
+        type="button"
+        :class="{ active: activeView === 'hall' }"
+        :aria-current="activeView === 'hall' ? 'page' : undefined"
+        @click="switchView('hall')"
+      >
+        <strong>大厅</strong>
+        <span>发现活动</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeView === 'joined' }"
+        :aria-current="activeView === 'joined' ? 'page' : undefined"
+        @click="switchView('joined')"
+      >
+        <strong>已参加</strong>
+        <span>{{ joinedEvents.length }} 项记录</span>
+      </button>
+      <button
+        type="button"
+        :class="{ active: activeView === 'profile' }"
+        :aria-current="activeView === 'profile' ? 'page' : undefined"
+        @click="switchView('profile')"
+      >
+        <strong>个人</strong>
+        <span>访客模式</span>
+      </button>
+    </nav>
 
     <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
   </div>
