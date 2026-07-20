@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +18,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
+@WithMockUser(username = "admin", roles = "ADMIN")
+@Sql(statements = "UPDATE admin_users SET password_change_required = FALSE WHERE username = 'admin'")
 class AdminEventControllerIntegrationTests {
 
     @Autowired
@@ -41,7 +46,7 @@ class AdminEventControllerIntegrationTests {
 
     @Test
     void createsDraftEventWithOfficialEntry() throws Exception {
-        mockMvc.perform(post("/api/admin/events")
+        mockMvc.perform(post("/api/admin/events").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest(true)))
                 .andExpect(status().isCreated())
@@ -57,7 +62,7 @@ class AdminEventControllerIntegrationTests {
         String request = validRequest(true)
                 .replace("2026-11-01T20:30:00", "2026-11-01T18:30:00");
 
-        mockMvc.perform(post("/api/admin/events")
+        mockMvc.perform(post("/api/admin/events").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isBadRequest());
@@ -67,7 +72,7 @@ class AdminEventControllerIntegrationTests {
     void rejectsUnknownCategory() throws Exception {
         String request = validRequest(true).replace("\"categoryId\": 1", "\"categoryId\": 9999");
 
-        mockMvc.perform(post("/api/admin/events")
+        mockMvc.perform(post("/api/admin/events").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isBadRequest());
@@ -75,7 +80,7 @@ class AdminEventControllerIntegrationTests {
 
     @Test
     void publishesCreatedEventAndMakesItPublic() throws Exception {
-        String response = mockMvc.perform(post("/api/admin/events")
+        String response = mockMvc.perform(post("/api/admin/events").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest(true)))
                 .andReturn()
@@ -84,7 +89,7 @@ class AdminEventControllerIntegrationTests {
         JsonNode created = objectMapper.readTree(response);
         long id = created.get("id").asLong();
 
-        mockMvc.perform(patch("/api/admin/events/{id}/status", id)
+        mockMvc.perform(patch("/api/admin/events/{id}/status", id).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"PUBLISHED\"}"))
                 .andExpect(status().isOk())
@@ -97,7 +102,7 @@ class AdminEventControllerIntegrationTests {
 
     @Test
     void refusesToPublishEventWithoutOfficialEntry() throws Exception {
-        String response = mockMvc.perform(post("/api/admin/events")
+        String response = mockMvc.perform(post("/api/admin/events").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest(false)))
                 .andReturn()
@@ -105,7 +110,7 @@ class AdminEventControllerIntegrationTests {
                 .getContentAsString();
         long id = objectMapper.readTree(response).get("id").asLong();
 
-        mockMvc.perform(patch("/api/admin/events/{id}/status", id)
+        mockMvc.perform(patch("/api/admin/events/{id}/status", id).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"PUBLISHED\"}"))
                 .andExpect(status().isBadRequest());
@@ -116,7 +121,7 @@ class AdminEventControllerIntegrationTests {
         String request = validRequest(true)
                 .replace("管理端新增演示活动", "管理端编辑后的活动");
 
-        mockMvc.perform(put("/api/admin/events/1")
+        mockMvc.perform(put("/api/admin/events/1").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
@@ -126,7 +131,7 @@ class AdminEventControllerIntegrationTests {
 
     @Test
     void archivesPublishedEventAndRemovesItFromPublicApi() throws Exception {
-        mockMvc.perform(patch("/api/admin/events/1/status")
+        mockMvc.perform(patch("/api/admin/events/1/status").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"ARCHIVED\"}"))
                 .andExpect(status().isOk())

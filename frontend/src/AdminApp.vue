@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
+  AdminApiError,
   changeAdminEventStatus,
+  changeAdminPassword,
   createAdminEvent,
+  fetchAdminAccount,
   fetchAdminCategories,
   fetchAdminEvents,
   fetchAdminOrganizers,
+  loginAdmin,
+  logoutAdmin,
   updateAdminEvent,
+  type AdminAccount,
   type AdminCategory,
   type AdminEvent,
   type AdminEventInput,
@@ -15,6 +21,7 @@ import {
 } from './services/adminApi'
 
 type StatusFilter = 'ALL' | EventStatus
+type AdminSection = 'events' | 'account'
 
 interface EventForm {
   title: string
@@ -36,13 +43,25 @@ interface EventForm {
 const events = ref<AdminEvent[]>([])
 const categories = ref<AdminCategory[]>([])
 const organizers = ref<AdminOrganizer[]>([])
+const account = ref<AdminAccount | null>(null)
+const activeSection = ref<AdminSection>('events')
 const statusFilter = ref<StatusFilter>('ALL')
-const isLoading = ref(true)
+const searchQuery = ref('')
+const isAuthLoading = ref(true)
+const isLoading = ref(false)
 const isSaving = ref(false)
+const isLoggingIn = ref(false)
+const isChangingPassword = ref(false)
+const isLoggingOut = ref(false)
 const editorOpen = ref(false)
 const editingId = ref<number | null>(null)
 const errorMessage = ref('')
+const authError = ref('')
+const accountError = ref('')
 const successMessage = ref('')
+
+const loginForm = reactive({ username: 'admin', password: '' })
+const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
 const statusLabels: Record<EventStatus, string> = {
   DRAFT: '草稿',
@@ -79,16 +98,40 @@ const blankForm = (): EventForm => ({
 
 const form = reactive<EventForm>(blankForm())
 
-const filteredEvents = computed(() =>
-  statusFilter.value === 'ALL'
-    ? events.value
-    : events.value.filter((event) => event.status === statusFilter.value),
-)
+const filteredEvents = computed(() => {
+  const keyword = searchQuery.value.trim().toLocaleLowerCase('zh-CN')
+  return events.value.filter((event) => {
+    const matchesStatus = statusFilter.value === 'ALL' || event.status === statusFilter.value
+    const matchesKeyword =
+      !keyword ||
+      [event.title, event.category, event.organizer, event.location].some((value) =>
+        value.toLocaleLowerCase('zh-CN').includes(keyword),
+      )
+    return matchesStatus && matchesKeyword
+  })
+})
+
+const resultDescription = computed(() => {
+  if (searchQuery.value.trim()) return `找到 ${filteredEvents.value.length} 条匹配活动`
+  return `共 ${filteredEvents.value.length} 条符合当前状态的活动`
+})
 
 const statusCount = (status: EventStatus) =>
   events.value.filter((event) => event.status === status).length
 
-const formatDateTime = (value: string) =>
+const formatDateTime = (value: string | null) => {
+  if (!value) return '本次会话首次登录'
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(value))
+}
+
+const formatEventDateTime = (value: string) =>
   new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',
     day: 'numeric',
@@ -106,6 +149,12 @@ const showSuccess = (message: string) => {
   }, 2600)
 }
 
+const expireSession = () => {
+  account.value = null
+  events.value = []
+  authError.value = '登录已过期，请重新登录。'
+}
+
 const loadData = async () => {
   isLoading.value = true
   errorMessage.value = ''
@@ -119,9 +168,102 @@ const loadData = async () => {
     categories.value = categoryData
     organizers.value = organizerData
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '管理数据读取失败。'
+    if (error instanceof AdminApiError && error.status === 401) {
+      expireSession()
+    } else if (error instanceof AdminApiError && error.status === 428) {
+      if (account.value) account.value.passwordChangeRequired = true
+      activeSection.value = 'account'
+      accountError.value = error.message
+    } else {
+      errorMessage.value = error instanceof Error ? error.message : '管理数据读取失败。'
+    }
   } finally {
     isLoading.value = false
+  }
+}
+
+const initialize = async () => {
+  isAuthLoading.value = true
+  try {
+    account.value = await fetchAdminAccount()
+    if (account.value.passwordChangeRequired) {
+      activeSection.value = 'account'
+    } else {
+      await loadData()
+    }
+  } catch (error) {
+    if (!(error instanceof AdminApiError && error.status === 401)) {
+      authError.value = error instanceof Error ? error.message : '管理端初始化失败。'
+    }
+  } finally {
+    isAuthLoading.value = false
+  }
+}
+
+const submitLogin = async () => {
+  isLoggingIn.value = true
+  authError.value = ''
+  try {
+    account.value = await loginAdmin(loginForm.username.trim(), loginForm.password)
+    loginForm.password = ''
+    if (account.value.passwordChangeRequired) {
+      activeSection.value = 'account'
+    } else {
+      activeSection.value = 'events'
+      await loadData()
+    }
+  } catch (error) {
+    authError.value = error instanceof Error ? error.message : '登录失败，请稍后重试。'
+  } finally {
+    isLoggingIn.value = false
+  }
+}
+
+const openEvents = async () => {
+  if (account.value?.passwordChangeRequired) {
+    activeSection.value = 'account'
+    accountError.value = '修改初始密码后才能管理活动。'
+    return
+  }
+  activeSection.value = 'events'
+  if (!events.value.length) await loadData()
+}
+
+const submitPasswordChange = async () => {
+  accountError.value = ''
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    accountError.value = '两次输入的新密码不一致。'
+    return
+  }
+  isChangingPassword.value = true
+  try {
+    account.value = await changeAdminPassword(
+      passwordForm.currentPassword,
+      passwordForm.newPassword,
+    )
+    Object.assign(passwordForm, { currentPassword: '', newPassword: '', confirmPassword: '' })
+    showSuccess('密码已更新，活动管理权限已启用。')
+    await loadData()
+  } catch (error) {
+    accountError.value = error instanceof Error ? error.message : '密码修改失败。'
+  } finally {
+    isChangingPassword.value = false
+  }
+}
+
+const submitLogout = async () => {
+  isLoggingOut.value = true
+  accountError.value = ''
+  try {
+    await logoutAdmin()
+    account.value = null
+    events.value = []
+    activeSection.value = 'events'
+    authError.value = ''
+  } catch (error) {
+    accountError.value = error instanceof Error ? error.message : '退出登录失败。'
+  } finally {
+    isLoggingOut.value = false
   }
 }
 
@@ -217,11 +359,55 @@ const setStatus = async (event: AdminEvent, status: EventStatus) => {
   }
 }
 
-onMounted(loadData)
+onMounted(initialize)
 </script>
 
 <template>
-  <div class="admin-shell">
+  <div v-if="isAuthLoading" class="admin-auth-shell">
+    <div class="admin-auth-loading" role="status">正在检查登录状态……</div>
+  </div>
+
+  <div v-else-if="!account" class="admin-auth-shell">
+    <main class="admin-login-panel">
+      <a class="admin-brand" href="/admin" aria-label="校园活动管理台首页">
+        <span>管</span>
+        <div>
+          <strong>校园活动管理台</strong>
+          <small>仅限授权管理员</small>
+        </div>
+      </a>
+      <div class="admin-login-copy">
+        <p>管理员登录</p>
+        <h1>安全管理校园活动</h1>
+        <span>登录后可以录入、审核、发布和下架活动。</span>
+      </div>
+      <form class="admin-login-form" @submit.prevent="submitLogin">
+        <label class="admin-field">
+          <span>管理员账号</span>
+          <input v-model="loginForm.username" autocomplete="username" required maxlength="80" />
+        </label>
+        <label class="admin-field">
+          <span>密码</span>
+          <input
+            v-model="loginForm.password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+        <p v-if="authError" class="admin-message error" role="alert">{{ authError }}</p>
+        <button type="submit" class="admin-primary" :disabled="isLoggingIn">
+          {{ isLoggingIn ? '正在登录……' : '登录管理台' }}
+        </button>
+      </form>
+      <p class="admin-login-help">
+        本地演示初始账号为 admin，初始密码为 campus-admin-2026。首次登录后必须修改密码。
+      </p>
+      <a class="admin-back-link" href="/">返回学生端</a>
+    </main>
+  </div>
+
+  <div v-else class="admin-shell">
     <header class="admin-topbar">
       <a class="admin-brand" href="/admin" aria-label="校园活动管理台首页">
         <span>管</span>
@@ -230,10 +416,28 @@ onMounted(loadData)
           <small>内容录入与发布</small>
         </div>
       </a>
-      <a class="admin-student-link" href="/">查看学生端</a>
+      <nav class="admin-topbar-actions" aria-label="管理台导航">
+        <button
+          type="button"
+          :class="{ active: activeSection === 'events' }"
+          :aria-current="activeSection === 'events' ? 'page' : undefined"
+          @click="openEvents"
+        >
+          活动管理
+        </button>
+        <button
+          type="button"
+          :class="{ active: activeSection === 'account' }"
+          :aria-current="activeSection === 'account' ? 'page' : undefined"
+          @click="activeSection = 'account'"
+        >
+          账号
+        </button>
+        <a class="admin-student-link" href="/">学生端</a>
+      </nav>
     </header>
 
-    <main class="admin-main">
+    <main v-if="activeSection === 'events'" class="admin-main">
       <section class="admin-intro">
         <div>
           <p>活动运营</p>
@@ -242,10 +446,6 @@ onMounted(loadData)
         </div>
         <button type="button" class="admin-primary" @click="openCreate">新增活动</button>
       </section>
-
-      <div class="admin-security-note" role="note">
-        当前是本地演示管理台，尚未接入管理员登录。完成权限保护前请勿公开部署管理接口。
-      </div>
 
       <section class="admin-stats" aria-label="活动状态统计">
         <div><span>全部活动</span><strong>{{ events.length }}</strong></div>
@@ -258,7 +458,7 @@ onMounted(loadData)
         <div class="admin-list-heading">
           <div>
             <h2 id="admin-list-title">活动列表</h2>
-            <p>共 {{ filteredEvents.length }} 条符合当前状态的活动</p>
+            <p>{{ resultDescription }}</p>
           </div>
           <div class="admin-filters" aria-label="按活动状态筛选">
             <button
@@ -271,6 +471,19 @@ onMounted(loadData)
             >
               {{ filter.label }}
             </button>
+          </div>
+        </div>
+
+        <div class="admin-search">
+          <label for="admin-event-search">搜索活动</label>
+          <div>
+            <input
+              id="admin-event-search"
+              v-model="searchQuery"
+              type="search"
+              placeholder="搜索标题、分类、主办方或地点"
+            />
+            <button v-if="searchQuery" type="button" @click="searchQuery = ''">清空</button>
           </div>
         </div>
 
@@ -292,7 +505,7 @@ onMounted(loadData)
               </div>
             </div>
             <dl class="admin-event-meta">
-              <div><dt>开始时间</dt><dd>{{ formatDateTime(event.startTime) }}</dd></div>
+              <div><dt>开始时间</dt><dd>{{ formatEventDateTime(event.startTime) }}</dd></div>
               <div><dt>地点</dt><dd>{{ event.location }}</dd></div>
               <div><dt>官方入口</dt><dd>{{ event.entries.length ? '已配置' : '未配置' }}</dd></div>
             </dl>
@@ -331,7 +544,99 @@ onMounted(loadData)
             </div>
           </article>
         </div>
-        <div v-else class="admin-empty">当前状态下没有活动。</div>
+        <div v-else class="admin-empty">
+          {{ searchQuery ? '没有找到匹配活动，请更换关键词。' : '当前状态下没有活动。' }}
+        </div>
+      </section>
+    </main>
+
+    <main v-else class="admin-main admin-account-main">
+      <section class="admin-intro">
+        <div>
+          <p>账号与安全</p>
+          <h1>管理员账号</h1>
+          <span>查看当前登录身份、修改密码或安全退出管理台。</span>
+        </div>
+      </section>
+
+      <div v-if="account.passwordChangeRequired" class="admin-security-note" role="alert">
+        当前仍在使用初始密码。修改密码前，活动新增、编辑、发布和下架功能会保持锁定。
+      </div>
+      <p v-if="accountError" class="admin-message error" role="alert">{{ accountError }}</p>
+      <p v-if="successMessage" class="admin-message success" role="status">
+        {{ successMessage }}
+      </p>
+
+      <section class="admin-account-grid">
+        <div class="admin-account-card">
+          <div class="admin-account-title">
+            <span>管</span>
+            <div>
+              <h2>{{ account.displayName }}</h2>
+              <p>拥有活动内容管理权限</p>
+            </div>
+          </div>
+          <dl class="admin-account-details">
+            <div><dt>登录账号</dt><dd>{{ account.username }}</dd></div>
+            <div><dt>账号角色</dt><dd>管理员</dd></div>
+            <div><dt>最近登录</dt><dd>{{ formatDateTime(account.lastLoginAt) }}</dd></div>
+            <div>
+              <dt>安全状态</dt>
+              <dd>{{ account.passwordChangeRequired ? '需要修改初始密码' : '密码已更新' }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <form class="admin-password-card" @submit.prevent="submitPasswordChange">
+          <div>
+            <h2>修改密码</h2>
+            <p>新密码至少 10 位，建议同时包含字母、数字和符号。</p>
+          </div>
+          <label class="admin-field">
+            <span>当前密码</span>
+            <input
+              v-model="passwordForm.currentPassword"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <label class="admin-field">
+            <span>新密码</span>
+            <input
+              v-model="passwordForm.newPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="10"
+              maxlength="72"
+              required
+            />
+          </label>
+          <label class="admin-field">
+            <span>再次输入新密码</span>
+            <input
+              v-model="passwordForm.confirmPassword"
+              type="password"
+              autocomplete="new-password"
+              minlength="10"
+              maxlength="72"
+              required
+            />
+          </label>
+          <button type="submit" class="admin-primary" :disabled="isChangingPassword">
+            {{ isChangingPassword ? '正在更新……' : '更新密码' }}
+          </button>
+        </form>
+      </section>
+
+      <section class="admin-signout">
+        <div>
+          <h2>退出当前账号</h2>
+          <p>退出后必须重新输入账号和密码，才能进入管理台。</p>
+        </div>
+        <button type="button" :disabled="isLoggingOut" @click="submitLogout">
+          {{ isLoggingOut ? '正在退出……' : '退出登录' }}
+        </button>
       </section>
     </main>
 

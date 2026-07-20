@@ -1,7 +1,18 @@
 import type { EventEntry } from '../data/events'
 
 const ADMIN_API_BASE_URL =
-  import.meta.env.VITE_ADMIN_API_BASE_URL ?? 'http://localhost:8080/api/admin'
+  import.meta.env.VITE_ADMIN_API_BASE_URL ?? '/api/admin'
+
+let csrfToken = ''
+
+export class AdminApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
 
 export type EventStatus =
   | 'DRAFT'
@@ -67,15 +78,57 @@ export interface AdminEventInput {
   entries: AdminEventEntryInput[]
 }
 
-const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+export interface AdminAccount {
+  id: number
+  username: string
+  displayName: string
+  role: string
+  passwordChangeRequired: boolean
+  lastLoginAt: string | null
+}
+
+interface CsrfTokenPayload {
+  headerName: string
+  token: string
+}
+
+const refreshCsrfToken = async () => {
+  const response = await fetch(`${ADMIN_API_BASE_URL}/auth/csrf`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) {
+    throw new AdminApiError('安全令牌获取失败，请刷新页面重试。', response.status)
+  }
+  const payload = (await response.json()) as CsrfTokenPayload
+  csrfToken = payload.token
+}
+
+const request = async <T>(
+  path: string,
+  init?: RequestInit,
+  canRetryCsrf = true,
+): Promise<T> => {
+  const method = init?.method?.toUpperCase() ?? 'GET'
+  const mutating = !['GET', 'HEAD', 'OPTIONS'].includes(method)
+  if (mutating && !csrfToken) await refreshCsrfToken()
+
   const response = await fetch(`${ADMIN_API_BASE_URL}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(mutating ? { 'X-XSRF-TOKEN': csrfToken } : {}),
       ...init?.headers,
     },
   })
+
+  if (response.status === 403 && mutating && canRetryCsrf) {
+    csrfToken = ''
+    await refreshCsrfToken()
+    return request<T>(path, init, false)
+  }
 
   if (!response.ok) {
     let message = `管理接口请求失败：${response.status}`
@@ -85,10 +138,36 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     } catch {
       // Keep the status-based fallback when the response is not JSON.
     }
-    throw new Error(message)
+    throw new AdminApiError(message, response.status)
   }
 
+  if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+export const fetchAdminAccount = () => request<AdminAccount>('/account')
+
+export const loginAdmin = async (username: string, password: string) => {
+  const account = await request<AdminAccount>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  })
+  csrfToken = ''
+  return account
+}
+
+export const logoutAdmin = async () => {
+  await request<void>('/auth/logout', { method: 'POST' })
+  csrfToken = ''
+}
+
+export const changeAdminPassword = async (currentPassword: string, newPassword: string) => {
+  const account = await request<AdminAccount>('/account/password', {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  csrfToken = ''
+  return account
 }
 
 export const fetchAdminEvents = () => request<AdminEvent[]>('/events')

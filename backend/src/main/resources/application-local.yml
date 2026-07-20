@@ -8,3 +8,10 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+app:
+  security:
+    initial-admin:
+      username: ${ADMIN_INITIAL_USERNAME:admin}
+      password: ${ADMIN_INITIAL_PASSWORD:campus-admin-2026}
+      display-name: ${ADMIN_INITIAL_DISPLAY_NAME:内容管理员}

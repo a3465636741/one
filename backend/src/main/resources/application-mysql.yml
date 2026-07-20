@@ -4,3 +4,10 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+app:
+  security:
+    initial-admin:
+      username: ${ADMIN_INITIAL_USERNAME:admin}
+      password: ${ADMIN_INITIAL_PASSWORD}
+      display-name: ${ADMIN_INITIAL_DISPLAY_NAME:内容管理员}

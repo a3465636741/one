@@ -13,7 +13,7 @@
 - 活动浏览、分类筛选、搜索与详情查看
 - 活动主办方、时间、地点、活动介绍展示
 - 官方报名链接或二维码展示与跳转
-- 管理员审核活动
+- 管理员登录、账号安全与活动审核
 - 活动内容的收集与维护
 
 ## 技术方向
@@ -46,15 +46,17 @@ npm install
 npm run dev
 ```
 
-前端默认请求 `http://localhost:8080/api/public`。如果后端未启动，页面会自动降级到前端内置的模拟数据；也可通过 `VITE_API_BASE_URL` 修改接口地址。
+开发环境下，Vite 会把 `/api` 请求代理到 `http://localhost:8080`。如果后端未启动，学生端会自动降级到前端内置的模拟数据；前后端分开部署时可通过 `VITE_API_BASE_URL` 和 `VITE_ADMIN_API_BASE_URL` 修改接口地址。
 
 本地管理页面：
 
 - 管理台：`http://localhost:5173/admin`
-- 支持活动列表、状态筛选、新增草稿、编辑、送审、发布和下架。
-- 当前管理接口尚未接入登录保护，只能用于本地开发演示，不能直接公开部署。
+- 支持登录、账号页、修改密码、退出登录、活动搜索、状态筛选、新增草稿、编辑、送审、发布和下架。
+- 本地初始账号：`admin`
+- 本地初始密码：`campus-admin-2026`
+- 首次登录必须修改初始密码，修改前活动管理接口保持锁定。
 
-管理端默认请求 `http://localhost:8080/api/admin`，可通过 `VITE_ADMIN_API_BASE_URL` 修改。
+管理接口使用服务端会话、CSRF 防护和角色校验；密码以 BCrypt 哈希保存。H2 是内存数据库，重启后端后会恢复初始账号和密码。
 
 生产构建：
 
@@ -68,10 +70,13 @@ npm run build
 ```powershell
 $env:DB_USERNAME="你的数据库用户名"
 $env:DB_PASSWORD="你的数据库密码"
+$env:ADMIN_INITIAL_USERNAME="admin"
+$env:ADMIN_INITIAL_PASSWORD="至少10位的初始密码"
+$env:ADMIN_INITIAL_DISPLAY_NAME="内容管理员"
 .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
 
-可通过 `DB_URL` 覆盖默认连接地址。不要把数据库密码提交到 GitHub。
+可通过 `DB_URL` 覆盖默认连接地址。MySQL 模式必须显式设置 `ADMIN_INITIAL_PASSWORD`，且只会在管理员表为空时创建初始账号。不要把数据库密码或管理员密码提交到 GitHub。
 
 ## 项目文档
 
@@ -79,4 +84,4 @@ $env:DB_PASSWORD="你的数据库密码"
 
 ## 当前状态
 
-已完成第一版 H5 学生端、Spring Boot 活动目录后端、Flyway 数据库迁移、公开 API 和活动管理台。管理台支持活动新增、编辑、送审、发布与下架；当前共有 17 项自动化测试。下一步实现管理员登录保护和分类管理。
+已完成第一版 H5 学生端、Spring Boot 活动目录后端、Flyway 数据库迁移、公开 API 和受保护的活动管理台。管理台支持账号登录、首次改密、活动搜索、新增、编辑、送审、发布与下架；当前共有 23 项自动化测试。下一步完成分类管理和过期活动处理。
