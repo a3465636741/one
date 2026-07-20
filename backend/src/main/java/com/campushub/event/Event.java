@@ -60,6 +60,9 @@ public class Event {
     @Column(name = "source_url", length = 500)
     private String sourceUrl;
 
+    @Column(name = "review_note", length = 500)
+    private String reviewNote;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private EventStatus status;
@@ -144,6 +147,11 @@ public class Event {
         this.status = status;
     }
 
+    public void changeStatus(EventStatus status, String reviewNote) {
+        this.status = status;
+        this.reviewNote = reviewNote;
+    }
+
     public Long getId() {
         return id;
     }
@@ -190,6 +198,10 @@ public class Event {
 
     public EventStatus getStatus() {
         return status;
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
     }
 
     public boolean isDemo() {

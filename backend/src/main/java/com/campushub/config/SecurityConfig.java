@@ -74,9 +74,11 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/public/**", "/api/admin/auth/csrf",
-                                "/api/admin/auth/login", "/h2-console/**")
+                                "/api/admin/auth/login", "/api/organizer/auth/csrf",
+                                "/api/organizer/auth/login", "/h2-console/**")
                         .permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/organizer/**").hasRole("ORGANIZER")
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> {

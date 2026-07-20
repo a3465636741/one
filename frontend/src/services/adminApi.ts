@@ -17,6 +17,7 @@ export class AdminApiError extends Error {
 export type EventStatus =
   | 'DRAFT'
   | 'PENDING_REVIEW'
+  | 'REJECTED'
   | 'PUBLISHED'
   | 'CANCELLED'
   | 'ARCHIVED'
@@ -50,6 +51,7 @@ export interface AdminEvent {
   location: string
   coverUrl: string | null
   sourceUrl: string | null
+  reviewNote: string | null
   status: EventStatus
   demo: boolean
   entries: EventEntry[]
@@ -188,8 +190,8 @@ export const updateAdminEvent = (id: number, input: AdminEventInput) =>
     body: JSON.stringify(input),
   })
 
-export const changeAdminEventStatus = (id: number, status: EventStatus) =>
+export const changeAdminEventStatus = (id: number, status: EventStatus, reviewNote?: string) =>
   request<AdminEvent>(`/events/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reviewNote }),
   })

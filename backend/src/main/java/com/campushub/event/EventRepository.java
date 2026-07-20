@@ -16,9 +16,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @EntityGraph(attributePaths = {"category", "organizer", "entries"})
     List<Event> findAllByStatusOrderByStartTimeAsc(EventStatus status);
 
+    @EntityGraph(attributePaths = {"category", "organizer", "entries"})
+    List<Event> findAllByOrganizerIdOrderByStartTimeAsc(Long organizerId);
+
     @Override
     @EntityGraph(attributePaths = {"category", "organizer", "entries"})
     Optional<Event> findById(Long id);
+
+    @EntityGraph(attributePaths = {"category", "organizer", "entries"})
+    Optional<Event> findByIdAndOrganizerId(Long id, Long organizerId);
 
     @Query("""
             SELECT e FROM Event e

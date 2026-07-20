@@ -142,6 +142,26 @@ class AdminEventControllerIntegrationTests {
     }
 
     @Test
+    void rejectsPendingEventWithReviewNote() throws Exception {
+        mockMvc.perform(patch("/api/admin/events/1/status").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"REJECTED","reviewNote":"请补充活动来源和准确地点"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.reviewNote").value("请补充活动来源和准确地点"));
+    }
+
+    @Test
+    void requiresReviewNoteWhenRejectingEvent() throws Exception {
+        mockMvc.perform(patch("/api/admin/events/1/status").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REJECTED\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void returnsCategoryAndOrganizerReferences() throws Exception {
         mockMvc.perform(get("/api/admin/categories"))
                 .andExpect(status().isOk())

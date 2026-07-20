@@ -102,12 +102,16 @@ public class AdminEventService {
         return AdminEventResponse.from(event);
     }
 
-    public AdminEventResponse changeStatus(Long id, EventStatus status) {
+    public AdminEventResponse changeStatus(Long id, EventStatus status, String reviewNote) {
         Event event = requireEvent(id);
         if (status == EventStatus.PUBLISHED && event.getEntries().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发布活动前必须配置官方入口");
         }
-        event.changeStatus(status);
+        String normalizedReviewNote = normalize(reviewNote);
+        if (status == EventStatus.REJECTED && normalizedReviewNote == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退回活动时必须填写修改原因");
+        }
+        event.changeStatus(status, status == EventStatus.REJECTED ? normalizedReviewNote : null);
         return AdminEventResponse.from(event);
     }
 

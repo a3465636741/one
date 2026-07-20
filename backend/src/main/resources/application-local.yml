@@ -15,3 +15,8 @@ app:
       username: ${ADMIN_INITIAL_USERNAME:admin}
       password: ${ADMIN_INITIAL_PASSWORD:campus-admin-2026}
       display-name: ${ADMIN_INITIAL_DISPLAY_NAME:内容管理员}
+    initial-organizer:
+      organizer-id: ${ORGANIZER_INITIAL_ID:1}
+      username: ${ORGANIZER_INITIAL_USERNAME:techclub}
+      password: ${ORGANIZER_INITIAL_PASSWORD:campus-organizer-2026}
+      display-name: ${ORGANIZER_INITIAL_DISPLAY_NAME:启航科技社运营员}

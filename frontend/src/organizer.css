@@ -1,0 +1,129 @@
+.organizer-auth-shell {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 76%, transparent), transparent 52%),
+    var(--page);
+}
+
+.organizer-brand > span,
+.organizer-account-title > span {
+  background: var(--accent);
+}
+
+.organizer-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--border);
+}
+
+.organizer-flow div {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-strong);
+}
+
+.organizer-flow strong {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.organizer-flow span {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.organizer-event-row {
+  grid-template-columns: minmax(280px, 1.2fr) minmax(340px, 1fr) auto;
+}
+
+.organizer-owner-note,
+.organizer-submit-note {
+  grid-column: 1 / -1;
+  border-radius: var(--radius-control);
+  padding: 13px 14px;
+  background: var(--accent-soft);
+}
+
+.organizer-owner-note strong,
+.organizer-owner-note span {
+  display: block;
+}
+
+.organizer-owner-note strong {
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+
+.organizer-owner-note span,
+.organizer-submit-note {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.organizer-submit-note {
+  margin-top: 0;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.admin-event-actions button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+@media (max-width: 980px) {
+  .organizer-event-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .organizer-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .organizer-flow div {
+    min-height: 58px;
+  }
+
+  .organizer-owner-note,
+  .organizer-submit-note {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 390px) {
+  .organizer-shell .admin-topbar {
+    gap: 6px;
+  }
+
+  .organizer-shell .admin-brand > div {
+    max-width: 112px;
+  }
+
+  .organizer-shell .admin-brand strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .organizer-shell .admin-topbar-actions .admin-student-link {
+    display: none;
+  }
+}

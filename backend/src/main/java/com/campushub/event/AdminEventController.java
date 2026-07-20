@@ -55,7 +55,7 @@ public class AdminEventController {
             @PathVariable Long id,
             @Valid @RequestBody AdminEventStatusRequest request
     ) {
-        return adminEventService.changeStatus(id, request.status());
+        return adminEventService.changeStatus(id, request.status(), request.reviewNote());
     }
 
     @GetMapping("/categories")

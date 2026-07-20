@@ -424,6 +424,16 @@
   background: color-mix(in srgb, #c27a24 15%, var(--surface));
 }
 
+.admin-event-status[data-status='REJECTED'] {
+  color: #a54747;
+  background: color-mix(in srgb, #a54747 12%, var(--surface));
+}
+
+.admin-review-note {
+  color: #a54747 !important;
+  white-space: normal;
+}
+
 .admin-event-meta {
   min-width: 0;
   display: grid;
@@ -460,6 +470,37 @@
 
 .admin-event-actions button.archive {
   color: #a54747;
+}
+
+.admin-event-actions button.reject {
+  border-color: color-mix(in srgb, #a54747 32%, var(--border));
+  color: #a54747;
+}
+
+.admin-reject-dialog {
+  width: min(520px, 100%);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  background: var(--surface-strong);
+}
+
+.admin-reject-dialog > div:first-child > span {
+  color: #a54747;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-reject-dialog h2 {
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.admin-reject-dialog > div:first-child > p {
+  margin: 8px 0 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .admin-editor-backdrop {

@@ -11,3 +11,8 @@ app:
       username: ${ADMIN_INITIAL_USERNAME:admin}
       password: ${ADMIN_INITIAL_PASSWORD}
       display-name: ${ADMIN_INITIAL_DISPLAY_NAME:内容管理员}
+    initial-organizer:
+      organizer-id: ${ORGANIZER_INITIAL_ID:1}
+      username: ${ORGANIZER_INITIAL_USERNAME:}
+      password: ${ORGANIZER_INITIAL_PASSWORD:}
+      display-name: ${ORGANIZER_INITIAL_DISPLAY_NAME:}

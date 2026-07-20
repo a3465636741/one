@@ -54,6 +54,9 @@ const isLoggingIn = ref(false)
 const isChangingPassword = ref(false)
 const isLoggingOut = ref(false)
 const editorOpen = ref(false)
+const rejectDialogOpen = ref(false)
+const rejectingEvent = ref<AdminEvent | null>(null)
+const rejectNote = ref('')
 const editingId = ref<number | null>(null)
 const errorMessage = ref('')
 const authError = ref('')
@@ -66,6 +69,7 @@ const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPas
 const statusLabels: Record<EventStatus, string> = {
   DRAFT: '草稿',
   PENDING_REVIEW: '待审核',
+  REJECTED: '已退回',
   PUBLISHED: '已发布',
   CANCELLED: '已取消',
   ARCHIVED: '已下架',
@@ -75,7 +79,9 @@ const filters: Array<{ value: StatusFilter; label: string }> = [
   { value: 'ALL', label: '全部' },
   { value: 'DRAFT', label: '草稿' },
   { value: 'PENDING_REVIEW', label: '待审核' },
+  { value: 'REJECTED', label: '已退回' },
   { value: 'PUBLISHED', label: '已发布' },
+  { value: 'CANCELLED', label: '已取消' },
   { value: 'ARCHIVED', label: '已下架' },
 ]
 
@@ -359,6 +365,42 @@ const setStatus = async (event: AdminEvent, status: EventStatus) => {
   }
 }
 
+const openRejectDialog = (event: AdminEvent) => {
+  rejectingEvent.value = event
+  rejectNote.value = event.reviewNote ?? ''
+  rejectDialogOpen.value = true
+}
+
+const closeRejectDialog = () => {
+  if (isSaving.value) return
+  rejectDialogOpen.value = false
+  rejectingEvent.value = null
+  rejectNote.value = ''
+}
+
+const submitReject = async () => {
+  const event = rejectingEvent.value
+  const note = rejectNote.value.trim()
+  if (!event || !note) {
+    errorMessage.value = '退回活动时必须填写需要修改的内容。'
+    return
+  }
+  isSaving.value = true
+  errorMessage.value = ''
+  try {
+    await changeAdminEventStatus(event.id, 'REJECTED', note)
+    showSuccess(`“${event.title}”已退回活动方修改。`)
+    rejectDialogOpen.value = false
+    rejectingEvent.value = null
+    rejectNote.value = ''
+    await loadData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '活动退回失败。'
+  } finally {
+    isSaving.value = false
+  }
+}
+
 onMounted(initialize)
 </script>
 
@@ -413,7 +455,7 @@ onMounted(initialize)
         <span>管</span>
         <div>
           <strong>校园活动管理台</strong>
-          <small>内容录入与发布</small>
+          <small>审核与后台维护</small>
         </div>
       </a>
       <nav class="admin-topbar-actions" aria-label="管理台导航">
@@ -442,15 +484,15 @@ onMounted(initialize)
         <div>
           <p>活动运营</p>
           <h1>管理活动内容</h1>
-          <span>创建草稿、补充官方入口，并控制活动是否出现在学生端。</span>
+          <span>审核活动方提交的内容，并处理异常、下架和必要的人工录入。</span>
         </div>
         <button type="button" class="admin-primary" @click="openCreate">新增活动</button>
       </section>
 
       <section class="admin-stats" aria-label="活动状态统计">
         <div><span>全部活动</span><strong>{{ events.length }}</strong></div>
-        <div><span>草稿</span><strong>{{ statusCount('DRAFT') }}</strong></div>
         <div><span>待审核</span><strong>{{ statusCount('PENDING_REVIEW') }}</strong></div>
+        <div><span>已退回</span><strong>{{ statusCount('REJECTED') }}</strong></div>
         <div><span>已发布</span><strong>{{ statusCount('PUBLISHED') }}</strong></div>
       </section>
 
@@ -502,6 +544,9 @@ onMounted(initialize)
               <div>
                 <h3>{{ event.title }}</h3>
                 <p>{{ event.category }} · {{ event.organizer }}</p>
+                <p v-if="event.reviewNote" class="admin-review-note">
+                  退回原因：{{ event.reviewNote }}
+                </p>
               </div>
             </div>
             <dl class="admin-event-meta">
@@ -525,6 +570,14 @@ onMounted(initialize)
                 @click="setStatus(event, 'PUBLISHED')"
               >
                 发布
+              </button>
+              <button
+                v-if="event.status === 'PENDING_REVIEW'"
+                type="button"
+                class="reject"
+                @click="openRejectDialog(event)"
+              >
+                退回修改
               </button>
               <button
                 v-if="event.status === 'PUBLISHED' || event.status === 'PENDING_REVIEW'"
@@ -729,6 +782,38 @@ onMounted(initialize)
             </button>
           </div>
         </form>
+      </section>
+    </div>
+
+    <div v-if="rejectDialogOpen" class="admin-editor-backdrop" @click.self="closeRejectDialog">
+      <section
+        class="admin-reject-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reject-dialog-title"
+      >
+        <div>
+          <span>审核反馈</span>
+          <h2 id="reject-dialog-title">退回“{{ rejectingEvent?.title }}”</h2>
+          <p>活动方会在自己的工作台看到这段原因，并可修改后再次提交。</p>
+        </div>
+        <label class="admin-field">
+          <span>需要修改的内容</span>
+          <textarea
+            v-model="rejectNote"
+            rows="4"
+            maxlength="500"
+            placeholder="例如：请补充信息来源，并将活动地点写到具体楼层。"
+            required
+          ></textarea>
+        </label>
+        <p v-if="errorMessage" class="admin-message error" role="alert">{{ errorMessage }}</p>
+        <div class="admin-form-actions">
+          <button type="button" @click="closeRejectDialog">取消</button>
+          <button type="button" class="admin-primary" :disabled="isSaving" @click="submitReject">
+            {{ isSaving ? '正在退回……' : '确认退回' }}
+          </button>
+        </div>
       </section>
     </div>
   </div>

@@ -18,6 +18,7 @@ public record AdminEventResponse(
         String location,
         String coverUrl,
         String sourceUrl,
+        String reviewNote,
         EventStatus status,
         boolean demo,
         List<EventEntryResponse> entries
@@ -38,6 +39,7 @@ public record AdminEventResponse(
                 event.getLocation(),
                 event.getCoverUrl(),
                 event.getSourceUrl(),
+                event.getReviewNote(),
                 event.getStatus(),
                 event.isDemo(),
                 event.getEntries().stream().map(EventEntryResponse::from).toList()

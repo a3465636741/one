@@ -13,8 +13,9 @@
 - 活动浏览、分类筛选、搜索与详情查看
 - 活动主办方、时间、地点、活动介绍展示
 - 官方报名链接或二维码展示与跳转
-- 管理员登录、账号安全与活动审核
-- 活动内容的收集与维护
+- 活动方独立登录、自有活动草稿与送审
+- 管理员登录、账号安全、审核发布与退回修改
+- 学生端、活动方和管理员三角色权限隔离
 
 ## 技术方向
 
@@ -46,7 +47,7 @@ npm install
 npm run dev
 ```
 
-开发环境下，Vite 会把 `/api` 请求代理到 `http://localhost:8080`。如果后端未启动，学生端会自动降级到前端内置的模拟数据；前后端分开部署时可通过 `VITE_API_BASE_URL` 和 `VITE_ADMIN_API_BASE_URL` 修改接口地址。
+开发环境下，Vite 会把 `/api` 请求代理到 `http://localhost:8080`。如果后端未启动，学生端会自动降级到前端内置的模拟数据；前后端分开部署时可通过 `VITE_API_BASE_URL`、`VITE_ADMIN_API_BASE_URL` 和 `VITE_ORGANIZER_API_BASE_URL` 修改接口地址。
 
 本地管理页面：
 
@@ -55,6 +56,16 @@ npm run dev
 - 本地初始账号：`admin`
 - 本地初始密码：`campus-admin-2026`
 - 首次登录必须修改初始密码，修改前活动管理接口保持锁定。
+
+本地活动方页面：
+
+- 工作台：`http://localhost:5173/organizer`
+- 支持登录、账号页、修改密码、搜索筛选、新建和编辑草稿、提交审核、查看退回原因、重新提交和取消活动。
+- 本地初始账号：`techclub`
+- 本地初始密码：`campus-organizer-2026`
+- 演示账号自动绑定“启航科技社”，只能访问该组织的活动。
+
+三类角色的职责：学生只浏览、收藏并前往第三方官方入口；活动方维护自己组织的活动；管理员只负责审核、退回、发布、下架和异常维护。平台不内置学生报名、签到或支付。
 
 管理接口使用服务端会话、CSRF 防护和角色校验；密码以 BCrypt 哈希保存。H2 是内存数据库，重启后端后会恢复初始账号和密码。
 
@@ -73,10 +84,14 @@ $env:DB_PASSWORD="你的数据库密码"
 $env:ADMIN_INITIAL_USERNAME="admin"
 $env:ADMIN_INITIAL_PASSWORD="至少10位的初始密码"
 $env:ADMIN_INITIAL_DISPLAY_NAME="内容管理员"
+$env:ORGANIZER_INITIAL_ID="1"
+$env:ORGANIZER_INITIAL_USERNAME="活动方初始账号"
+$env:ORGANIZER_INITIAL_PASSWORD="至少10位的初始密码"
+$env:ORGANIZER_INITIAL_DISPLAY_NAME="活动方运营员"
 .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
 
-可通过 `DB_URL` 覆盖默认连接地址。MySQL 模式必须显式设置 `ADMIN_INITIAL_PASSWORD`，且只会在管理员表为空时创建初始账号。不要把数据库密码或管理员密码提交到 GitHub。
+可通过 `DB_URL` 覆盖默认连接地址。MySQL 模式必须显式设置 `ADMIN_INITIAL_PASSWORD`。活动方初始化环境变量是可选的，配置后会为指定 `organizer_id` 创建首个活动方账号。初始账号只在对应用户名不存在时创建。不要把数据库密码或账号密码提交到 GitHub。
 
 ## 项目文档
 
@@ -84,4 +99,4 @@ $env:ADMIN_INITIAL_DISPLAY_NAME="内容管理员"
 
 ## 当前状态
 
-已完成第一版 H5 学生端、Spring Boot 活动目录后端、Flyway 数据库迁移、公开 API 和受保护的活动管理台。管理台支持账号登录、首次改密、活动搜索、新增、编辑、送审、发布与下架；当前共有 23 项自动化测试。下一步完成分类管理和过期活动处理。
+已完成第一版 H5 学生端、Spring Boot 活动目录后端、Flyway 数据库迁移，以及学生端、活动方、管理员三角色流程。活动方可独立维护本组织活动并提交审核，管理员可发布或填写原因退回；后端现有 36 项自动化测试。下一步完成分类管理、过期活动处理和 MySQL 正式连接验证。
