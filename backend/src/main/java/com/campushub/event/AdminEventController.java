@@ -1,6 +1,5 @@
 package com.campushub.event;
 
-import com.campushub.category.CategoryResponse;
 import com.campushub.organizer.OrganizerResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -56,11 +55,6 @@ public class AdminEventController {
             @Valid @RequestBody AdminEventStatusRequest request
     ) {
         return adminEventService.changeStatus(id, request.status(), request.reviewNote());
-    }
-
-    @GetMapping("/categories")
-    public List<CategoryResponse> categories() {
-        return adminEventService.findCategories();
     }
 
     @GetMapping("/organizers")

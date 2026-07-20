@@ -10,9 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class PublicEventControllerIntegrationTests {
 
     @Autowired
@@ -74,5 +77,27 @@ class PublicEventControllerIntegrationTests {
                         .param("from", "2026-10-01")
                         .param("to", "2026-09-01"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @Sql(statements = "INSERT INTO events (id, title, summary, content, category_id, "
+            + "organizer_id, start_time, end_time, location, status, demo) VALUES (99, "
+            + "'已经结束的演示活动', '用于验证过期活动默认隐藏。', "
+            + "'这是接口测试使用的虚构历史活动。', 1, 1, "
+            + "'2020-01-01 09:00:00', '2020-01-01 11:00:00', "
+            + "'示例校园历史教室', 'PUBLISHED', TRUE)")
+    void hidesExpiredEventsByDefaultButKeepsHistoryAccessible() throws Exception {
+        mockMvc.perform(get("/api/public/events"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(12));
+
+        mockMvc.perform(get("/api/public/events").param("includeExpired", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(13))
+                .andExpect(jsonPath("$[0].title").value("已经结束的演示活动"));
+
+        mockMvc.perform(get("/api/public/events/99"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("已经结束的演示活动"));
     }
 }

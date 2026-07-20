@@ -2,7 +2,6 @@ package com.campushub.event;
 
 import com.campushub.category.Category;
 import com.campushub.category.CategoryRepository;
-import com.campushub.category.CategoryResponse;
 import com.campushub.organizer.Organizer;
 import com.campushub.organizer.OrganizerRepository;
 import com.campushub.organizer.OrganizerResponse;
@@ -41,14 +40,6 @@ public class AdminEventService {
     @Transactional(readOnly = true)
     public AdminEventResponse findById(Long id) {
         return AdminEventResponse.from(requireEvent(id));
-    }
-
-    @Transactional(readOnly = true)
-    public List<CategoryResponse> findCategories() {
-        return categoryRepository.findAllByOrderBySortOrderAsc()
-                .stream()
-                .map(CategoryResponse::from)
-                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -149,6 +140,7 @@ public class AdminEventService {
 
     private Category requireCategory(Long id) {
         return categoryRepository.findById(id)
+                .filter(Category::isActive)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "活动分类不存在"));
     }
 

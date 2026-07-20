@@ -26,7 +26,7 @@ public class EventCatalogService {
     }
 
     public List<CategoryResponse> findCategories() {
-        return categoryRepository.findAllByOrderBySortOrderAsc()
+        return categoryRepository.findAllByActiveTrueOrderBySortOrderAsc()
                 .stream()
                 .map(CategoryResponse::from)
                 .toList();
@@ -36,7 +36,8 @@ public class EventCatalogService {
             String keyword,
             String categorySlug,
             LocalDate from,
-            LocalDate to
+            LocalDate to,
+            boolean includeExpired
     ) {
         if (from != null && to != null && to.isBefore(from)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "结束日期不能早于开始日期");
@@ -50,7 +51,9 @@ public class EventCatalogService {
                         normalize(keyword),
                         normalize(categorySlug),
                         fromTime,
-                        toTime
+                        toTime,
+                        includeExpired,
+                        LocalDateTime.now()
                 )
                 .stream()
                 .map(EventSummaryResponse::from)

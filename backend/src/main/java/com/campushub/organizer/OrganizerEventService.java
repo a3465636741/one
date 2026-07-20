@@ -43,7 +43,7 @@ public class OrganizerEventService {
 
     @Transactional(readOnly = true)
     public List<CategoryResponse> findCategories() {
-        return categoryRepository.findAllByOrderBySortOrderAsc()
+        return categoryRepository.findAllByActiveTrueOrderBySortOrderAsc()
                 .stream()
                 .map(CategoryResponse::from)
                 .toList();
@@ -156,6 +156,7 @@ public class OrganizerEventService {
 
     private Category requireCategory(Long id) {
         return categoryRepository.findById(id)
+                .filter(Category::isActive)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "活动分类不存在"

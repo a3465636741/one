@@ -20,6 +20,7 @@ public record AdminEventResponse(
         String sourceUrl,
         String reviewNote,
         EventStatus status,
+        boolean expired,
         boolean demo,
         List<EventEntryResponse> entries
 ) {
@@ -41,6 +42,7 @@ public record AdminEventResponse(
                 event.getSourceUrl(),
                 event.getReviewNote(),
                 event.getStatus(),
+                event.getEndTime().isBefore(LocalDateTime.now()),
                 event.isDemo(),
                 event.getEntries().stream().map(EventEntryResponse::from).toList()
         );

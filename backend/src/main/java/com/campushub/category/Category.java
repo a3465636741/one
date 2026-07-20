@@ -24,7 +24,25 @@ public class Category {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    @Column(nullable = false)
+    private boolean active;
+
     protected Category() {
+    }
+
+    public Category(String name, String slug, int sortOrder, boolean active) {
+        update(name, slug, sortOrder, active);
+    }
+
+    public void update(String name, String slug, int sortOrder, boolean active) {
+        this.name = name;
+        this.slug = slug;
+        this.sortOrder = sortOrder;
+        this.active = active;
+    }
+
+    public void changeActive(boolean active) {
+        this.active = active;
     }
 
     public Long getId() {
@@ -41,5 +59,9 @@ public class Category {
 
     public int getSortOrder() {
         return sortOrder;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 }

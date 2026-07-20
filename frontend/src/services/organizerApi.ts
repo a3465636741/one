@@ -42,6 +42,7 @@ export interface OrganizerEvent {
   sourceUrl: string | null
   reviewNote: string | null
   status: EventStatus
+  expired: boolean
   demo: boolean
   entries: EventEntry[]
 }

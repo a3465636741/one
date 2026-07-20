@@ -26,6 +26,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @EntityGraph(attributePaths = {"category", "organizer", "entries"})
     Optional<Event> findByIdAndOrganizerId(Long id, Long organizerId);
 
+    long countByCategoryId(Long categoryId);
+
     @Query("""
             SELECT e FROM Event e
             JOIN FETCH e.category c
@@ -39,6 +41,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                    OR LOWER(o.name) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:fromTime IS NULL OR e.startTime >= :fromTime)
               AND (:toTime IS NULL OR e.startTime < :toTime)
+              AND (:includeExpired = TRUE OR e.endTime >= :now)
             ORDER BY e.startTime ASC
             """)
     List<Event> searchPublished(
@@ -46,7 +49,9 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("keyword") String keyword,
             @Param("categorySlug") String categorySlug,
             @Param("fromTime") LocalDateTime fromTime,
-            @Param("toTime") LocalDateTime toTime
+            @Param("toTime") LocalDateTime toTime,
+            @Param("includeExpired") boolean includeExpired,
+            @Param("now") LocalDateTime now
     );
 
     @EntityGraph(attributePaths = {"category", "organizer", "entries"})

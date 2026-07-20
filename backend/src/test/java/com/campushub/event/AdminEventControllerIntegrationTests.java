@@ -172,6 +172,19 @@ class AdminEventControllerIntegrationTests {
                 .andExpect(jsonPath("$.length()").value(12));
     }
 
+    @Test
+    void marksPastEventAsExpired() throws Exception {
+        String request = validRequest(true)
+                .replace("2026-11-01T19:00:00", "2020-11-01T19:00:00")
+                .replace("2026-11-01T20:30:00", "2020-11-01T20:30:00");
+
+        mockMvc.perform(post("/api/admin/events").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.expired").value(true));
+    }
+
     private String validRequest(boolean withEntry) {
         String entries = withEntry
                 ? """

@@ -2,8 +2,10 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   AdminApiError,
+  changeAdminCategoryActive,
   changeAdminEventStatus,
   changeAdminPassword,
+  createAdminCategory,
   createAdminEvent,
   fetchAdminAccount,
   fetchAdminCategories,
@@ -11,17 +13,26 @@ import {
   fetchAdminOrganizers,
   loginAdmin,
   logoutAdmin,
+  updateAdminCategory,
   updateAdminEvent,
   type AdminAccount,
   type AdminCategory,
+  type AdminCategoryInput,
   type AdminEvent,
   type AdminEventInput,
   type AdminOrganizer,
   type EventStatus,
 } from './services/adminApi'
 
-type StatusFilter = 'ALL' | EventStatus
-type AdminSection = 'events' | 'account'
+type StatusFilter = 'ALL' | 'EXPIRED' | EventStatus
+type AdminSection = 'events' | 'categories' | 'account'
+
+interface CategoryForm {
+  name: string
+  slug: string
+  sortOrder: number
+  active: boolean
+}
 
 interface EventForm {
   title: string
@@ -53,11 +64,14 @@ const isSaving = ref(false)
 const isLoggingIn = ref(false)
 const isChangingPassword = ref(false)
 const isLoggingOut = ref(false)
+const categoryActionId = ref<number | null>(null)
 const editorOpen = ref(false)
+const categoryEditorOpen = ref(false)
 const rejectDialogOpen = ref(false)
 const rejectingEvent = ref<AdminEvent | null>(null)
 const rejectNote = ref('')
 const editingId = ref<number | null>(null)
+const editingCategoryId = ref<number | null>(null)
 const errorMessage = ref('')
 const authError = ref('')
 const accountError = ref('')
@@ -65,6 +79,7 @@ const successMessage = ref('')
 
 const loginForm = reactive({ username: 'admin', password: '' })
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
+const categoryForm = reactive<CategoryForm>({ name: '', slug: '', sortOrder: 10, active: true })
 
 const statusLabels: Record<EventStatus, string> = {
   DRAFT: '草稿',
@@ -81,6 +96,7 @@ const filters: Array<{ value: StatusFilter; label: string }> = [
   { value: 'PENDING_REVIEW', label: '待审核' },
   { value: 'REJECTED', label: '已退回' },
   { value: 'PUBLISHED', label: '已发布' },
+  { value: 'EXPIRED', label: '已过期' },
   { value: 'CANCELLED', label: '已取消' },
   { value: 'ARCHIVED', label: '已下架' },
 ]
@@ -89,7 +105,7 @@ const blankForm = (): EventForm => ({
   title: '',
   summary: '',
   content: '',
-  categoryId: categories.value[0]?.id ?? 0,
+  categoryId: categories.value.find((category) => category.active)?.id ?? 0,
   organizerId: organizers.value[0]?.id ?? 0,
   startTime: '',
   endTime: '',
@@ -103,11 +119,13 @@ const blankForm = (): EventForm => ({
 })
 
 const form = reactive<EventForm>(blankForm())
+const activeCategories = computed(() => categories.value.filter((category) => category.active))
 
 const filteredEvents = computed(() => {
   const keyword = searchQuery.value.trim().toLocaleLowerCase('zh-CN')
   return events.value.filter((event) => {
-    const matchesStatus = statusFilter.value === 'ALL' || event.status === statusFilter.value
+    const matchesStatus = statusFilter.value === 'ALL'
+      || (statusFilter.value === 'EXPIRED' ? event.expired : event.status === statusFilter.value)
     const matchesKeyword =
       !keyword ||
       [event.title, event.category, event.organizer, event.location].some((value) =>
@@ -235,6 +253,17 @@ const openEvents = async () => {
   if (!events.value.length) await loadData()
 }
 
+const openCategories = async () => {
+  if (account.value?.passwordChangeRequired) {
+    activeSection.value = 'account'
+    accountError.value = '修改初始密码后才能管理分类。'
+    return
+  }
+  errorMessage.value = ''
+  activeSection.value = 'categories'
+  if (!categories.value.length) await loadData()
+}
+
 const submitPasswordChange = async () => {
   accountError.value = ''
   if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -304,6 +333,79 @@ const openEdit = (event: AdminEvent) => {
 const closeEditor = () => {
   if (isSaving.value) return
   editorOpen.value = false
+}
+
+const openCategoryCreate = () => {
+  errorMessage.value = ''
+  editingCategoryId.value = null
+  const highestOrder = categories.value.reduce(
+    (highest, category) => Math.max(highest, category.sortOrder),
+    0,
+  )
+  Object.assign(categoryForm, {
+    name: '',
+    slug: '',
+    sortOrder: highestOrder + 10,
+    active: true,
+  })
+  categoryEditorOpen.value = true
+}
+
+const openCategoryEdit = (category: AdminCategory) => {
+  errorMessage.value = ''
+  editingCategoryId.value = category.id
+  Object.assign(categoryForm, {
+    name: category.name,
+    slug: category.slug,
+    sortOrder: category.sortOrder,
+    active: category.active,
+  })
+  categoryEditorOpen.value = true
+}
+
+const closeCategoryEditor = () => {
+  if (!isSaving.value) categoryEditorOpen.value = false
+}
+
+const categoryInput = (): AdminCategoryInput => ({
+  name: categoryForm.name.trim(),
+  slug: categoryForm.slug.trim().toLocaleLowerCase('en-US'),
+  sortOrder: Number(categoryForm.sortOrder),
+  active: categoryForm.active,
+})
+
+const saveCategory = async () => {
+  isSaving.value = true
+  errorMessage.value = ''
+  try {
+    if (editingCategoryId.value === null) {
+      await createAdminCategory(categoryInput())
+      showSuccess('活动分类已创建。')
+    } else {
+      await updateAdminCategory(editingCategoryId.value, categoryInput())
+      showSuccess('活动分类已更新。')
+    }
+    categoryEditorOpen.value = false
+    await loadData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '活动分类保存失败。'
+  } finally {
+    isSaving.value = false
+  }
+}
+
+const toggleCategory = async (category: AdminCategory) => {
+  categoryActionId.value = category.id
+  errorMessage.value = ''
+  try {
+    await changeAdminCategoryActive(category.id, !category.active)
+    showSuccess(`“${category.name}”已${category.active ? '停用' : '启用'}。`)
+    await loadData()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '分类状态更新失败。'
+  } finally {
+    categoryActionId.value = null
+  }
 }
 
 const toInput = (): AdminEventInput => {
@@ -469,6 +571,14 @@ onMounted(initialize)
         </button>
         <button
           type="button"
+          :class="{ active: activeSection === 'categories' }"
+          :aria-current="activeSection === 'categories' ? 'page' : undefined"
+          @click="openCategories"
+        >
+          分类管理
+        </button>
+        <button
+          type="button"
           :class="{ active: activeSection === 'account' }"
           :aria-current="activeSection === 'account' ? 'page' : undefined"
           @click="activeSection = 'account'"
@@ -539,7 +649,7 @@ onMounted(initialize)
           <article v-for="event in filteredEvents" :key="event.id" class="admin-event-row">
             <div class="admin-event-main">
               <div class="admin-event-status" :data-status="event.status">
-                {{ statusLabels[event.status] }}
+                {{ statusLabels[event.status] }}{{ event.expired ? ' · 已过期' : '' }}
               </div>
               <div>
                 <h3>{{ event.title }}</h3>
@@ -599,6 +709,72 @@ onMounted(initialize)
         </div>
         <div v-else class="admin-empty">
           {{ searchQuery ? '没有找到匹配活动，请更换关键词。' : '当前状态下没有活动。' }}
+        </div>
+      </section>
+    </main>
+
+    <main v-else-if="activeSection === 'categories'" class="admin-main">
+      <section class="admin-intro">
+        <div>
+          <p>内容结构</p>
+          <h1>管理活动分类</h1>
+          <span>调整分类名称和顺序，停用后不再允许新活动选择，历史活动仍会保留。</span>
+        </div>
+        <button type="button" class="admin-primary" @click="openCategoryCreate">
+          新增分类
+        </button>
+      </section>
+
+      <section class="admin-category-summary" aria-label="分类状态统计">
+        <div><span>全部分类</span><strong>{{ categories.length }}</strong></div>
+        <div><span>启用中</span><strong>{{ activeCategories.length }}</strong></div>
+        <div><span>已停用</span><strong>{{ categories.length - activeCategories.length }}</strong></div>
+      </section>
+
+      <p v-if="errorMessage" class="admin-message error" role="alert">{{ errorMessage }}</p>
+      <p v-if="successMessage" class="admin-message success" role="status">
+        {{ successMessage }}
+      </p>
+
+      <section class="admin-category-section" aria-labelledby="category-admin-title">
+        <div class="admin-list-heading">
+          <div>
+            <h2 id="category-admin-title">分类列表</h2>
+            <p>排序值越小，在学生端和活动方表单中越靠前。</p>
+          </div>
+        </div>
+
+        <div v-if="isLoading" class="admin-loading">正在读取分类……</div>
+        <div v-else class="admin-category-list">
+          <article v-for="category in categories" :key="category.id" class="admin-category-row">
+            <div class="admin-category-identity">
+              <span class="admin-category-order">{{ category.sortOrder }}</span>
+              <div>
+                <h3>{{ category.name }}</h3>
+                <p>{{ category.slug }}</p>
+              </div>
+            </div>
+            <dl class="admin-category-meta">
+              <div><dt>使用活动</dt><dd>{{ category.eventCount }} 条</dd></div>
+              <div>
+                <dt>当前状态</dt>
+                <dd :class="{ inactive: !category.active }">
+                  {{ category.active ? '启用中' : '已停用' }}
+                </dd>
+              </div>
+            </dl>
+            <div class="admin-event-actions">
+              <button type="button" @click="openCategoryEdit(category)">编辑</button>
+              <button
+                type="button"
+                :class="category.active ? 'archive' : 'publish'"
+                :disabled="categoryActionId === category.id"
+                @click="toggleCategory(category)"
+              >
+                {{ categoryActionId === category.id ? '处理中……' : category.active ? '停用' : '重新启用' }}
+              </button>
+            </div>
+          </article>
         </div>
       </section>
     </main>
@@ -719,8 +895,13 @@ onMounted(initialize)
           <label class="admin-field">
             <span>活动分类</span>
             <select v-model.number="form.categoryId" required>
-              <option v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.name }}
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
+                :disabled="!category.active"
+              >
+                {{ category.name }}{{ category.active ? '' : '（已停用）' }}
               </option>
             </select>
           </label>
@@ -779,6 +960,61 @@ onMounted(initialize)
             <button type="button" @click="closeEditor">取消</button>
             <button type="submit" class="admin-primary" :disabled="isSaving">
               {{ isSaving ? '正在保存……' : editingId === null ? '创建草稿' : '保存修改' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div
+      v-if="categoryEditorOpen"
+      class="admin-editor-backdrop"
+      @click.self="closeCategoryEditor"
+    >
+      <section
+        class="admin-category-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-editor-title"
+      >
+        <div class="admin-editor-head">
+          <div>
+            <span>{{ editingCategoryId === null ? '新建分类' : `编辑分类 #${editingCategoryId}` }}</span>
+            <h2 id="category-editor-title">
+              {{ editingCategoryId === null ? '新增活动分类' : '编辑活动分类' }}
+            </h2>
+          </div>
+          <button type="button" @click="closeCategoryEditor">关闭</button>
+        </div>
+        <form class="admin-category-form" @submit.prevent="saveCategory">
+          <label class="admin-field">
+            <span>分类名称</span>
+            <input v-model="categoryForm.name" required maxlength="60" placeholder="例如：创新创业" />
+          </label>
+          <label class="admin-field">
+            <span>英文标识</span>
+            <input
+              v-model="categoryForm.slug"
+              required
+              maxlength="80"
+              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              placeholder="例如：innovation"
+            />
+            <small>用于接口筛选，只能填写小写字母、数字和连字符。</small>
+          </label>
+          <label class="admin-field">
+            <span>排序值</span>
+            <input v-model.number="categoryForm.sortOrder" type="number" min="0" max="9999" required />
+          </label>
+          <label class="admin-check">
+            <input v-model="categoryForm.active" type="checkbox" />
+            <span>创建后立即启用</span>
+          </label>
+          <p v-if="errorMessage" class="admin-message error" role="alert">{{ errorMessage }}</p>
+          <div class="admin-form-actions">
+            <button type="button" @click="closeCategoryEditor">取消</button>
+            <button type="submit" class="admin-primary" :disabled="isSaving">
+              {{ isSaving ? '正在保存……' : '保存分类' }}
             </button>
           </div>
         </form>

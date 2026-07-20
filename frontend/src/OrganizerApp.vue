@@ -498,7 +498,7 @@ onMounted(initialize)
           <article v-for="event in filteredEvents" :key="event.id" class="admin-event-row organizer-event-row">
             <div class="admin-event-main">
               <div class="admin-event-status" :data-status="event.status">
-                {{ statusLabels[event.status] }}
+                {{ statusLabels[event.status] }}{{ event.expired ? ' · 已过期' : '' }}
               </div>
               <div>
                 <h3>{{ event.title }}</h3>

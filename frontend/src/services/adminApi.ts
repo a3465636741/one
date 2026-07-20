@@ -27,6 +27,15 @@ export interface AdminCategory {
   name: string
   slug: string
   sortOrder: number
+  active: boolean
+  eventCount: number
+}
+
+export interface AdminCategoryInput {
+  name: string
+  slug: string
+  sortOrder: number
+  active: boolean
 }
 
 export interface AdminOrganizer {
@@ -53,6 +62,7 @@ export interface AdminEvent {
   sourceUrl: string | null
   reviewNote: string | null
   status: EventStatus
+  expired: boolean
   demo: boolean
   entries: EventEntry[]
 }
@@ -175,6 +185,24 @@ export const changeAdminPassword = async (currentPassword: string, newPassword: 
 export const fetchAdminEvents = () => request<AdminEvent[]>('/events')
 
 export const fetchAdminCategories = () => request<AdminCategory[]>('/categories')
+
+export const createAdminCategory = (input: AdminCategoryInput) =>
+  request<AdminCategory>('/categories', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+
+export const updateAdminCategory = (id: number, input: AdminCategoryInput) =>
+  request<AdminCategory>(`/categories/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+
+export const changeAdminCategoryActive = (id: number, active: boolean) =>
+  request<AdminCategory>(`/categories/${id}/active`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
+  })
 
 export const fetchAdminOrganizers = () => request<AdminOrganizer[]>('/organizers')
 

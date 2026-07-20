@@ -38,9 +38,10 @@ public class PublicEventController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "false") boolean includeExpired
     ) {
-        return eventCatalogService.search(keyword, category, from, to);
+        return eventCatalogService.search(keyword, category, from, to, includeExpired);
     }
 
     @GetMapping("/events/{id}")
